@@ -3,15 +3,137 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>বিপুল | কন্ট্রোল প্যানেল ফাইনাল</title>
+    <title>বিপুল | কন্ট্রোল প্যানেল ক্লাউড</title>
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, where, deleteDoc, doc, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        
+        // তোমার Firebase কনফিগারেশন
+        const firebaseConfig = {
+            apiKey: "AIzaSyCMzOtgOBkDQNyjK6Ds23os4DqhUulF1II",
+            authDomain: "bipul-app.firebaseapp.com",
+            projectId: "bipul-app",
+            storageBucket: "bipul-app.firebasestorage.app",
+            messagingSenderId: "674309699893",
+            appId: "1:674309699893:web:d661f73ff03fc88bfcb47c"
+        };
+
+        // Firebase ইনিশিয়ালাইজেশন
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // গ্লোবাল ভেরিয়েবল
+        window.currentType = ''; window.currentCat = ''; window.currentSub = '';
+
+        // কন্টাক্ট সেভ করার ফাংশন
+        window.saveContact = async () => {
+            const name = document.getElementById('newName').value;
+            const phone = document.getElementById('newPhone').value;
+            if(!name || !phone) return alert("দয়া করে সব তথ্য দিন");
+            
+            try {
+                // 'contacts' কালেকশনে ডাটা সেভ হবে
+                await addDoc(collection(db, "contacts"), {
+                    type: window.currentType,
+                    cat: window.currentCat,
+                    sub: window.currentSub,
+                    name: name,
+                    phone: phone,
+                    createdAt: Date.now() // ডাটা সিরিয়াল ঠিক রাখার জন্য
+                });
+                document.getElementById('newName').value = '';
+                document.getElementById('newPhone').value = '';
+                closeModal('addContactModal');
+            } catch (e) {
+                console.error("Error: ", e);
+                alert("ডাটা সেভ হয়নি! Firestore Rules চেক করুন।");
+            }
+        };
+
+        // রিয়েল-টাইম কন্টাক্ট দেখানোর ফাংশন
+        window.renderContacts = () => {
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            
+            // Firebase কুয়েরি (টাইপ, ক্যাটাগরি এবং সাব-ক্যাটাগরি অনুযায়ী)
+            const q = query(collection(db, "contacts"), 
+                where("type", "==", window.currentType),
+                where("cat", "==", window.currentCat),
+                where("sub", "==", window.currentSub));
+
+            onSnapshot(q, (snapshot) => {
+                let html = '';
+                snapshot.forEach((d) => {
+                    const c = d.data();
+                    if(c.name.toLowerCase().includes(search) || c.phone.includes(search)) {
+                        html += `
+                        <div class="p-4 glass rounded-2xl flex justify-between items-center border-l-4 border-cyan-500 mb-4">
+                            <div><p class="font-bold text-sm text-white">${c.name}</p><p class="text-[10px] text-cyan-500">${c.phone}</p></div>
+                            <div class="flex gap-4">
+                                <button onclick="window.deleteData('contacts', '${d.id}')" class="text-white/10"><i class="fas fa-trash"></i></button>
+                                <a href="tel:${c.phone}" class="w-11 h-11 bg-green-600 rounded-xl flex items-center justify-center text-white"><i class="fas fa-phone"></i></a>
+                            </div>
+                        </div>`;
+                    }
+                });
+                document.getElementById('contactDisplay').innerHTML = html || '<p class="text-center opacity-10 py-10">কোনো তথ্য নেই</p>';
+            });
+        };
+
+        // ডাটা ডিলিট করার ফাংশন
+        window.deleteData = async (coll, id) => {
+            if(confirm("আপনি কি নিশ্চিতভাবে এটি ডিলিট করতে চান?")) {
+                await deleteDoc(doc(db, coll, id));
+            }
+        };
+
+        // নোট সেভ করার ফাংশন
+        window.saveNote = async () => {
+            const title = document.getElementById('noteTitle').value;
+            const content = document.getElementById('noteContent').value;
+            if(!title || !content) return alert("শিরোনাম ও কন্টেন্ট দিন");
+            
+            try {
+                // 'notes' কালেকশনে ডাটা সেভ হবে
+                await addDoc(collection(db, "notes"), {
+                    title, content, timestamp: Date.now()
+                });
+                document.getElementById('noteTitle').value = '';
+                document.getElementById('noteContent').value = '';
+                closeModal('addNoteModal');
+            } catch (e) {
+                console.error("Error: ", e);
+                alert("নোট সেভ হয়নি!");
+            }
+        };
+
+        // রিয়েল-টাইম নোট দেখানোর ফাংশন
+        window.renderNotes = () => {
+            onSnapshot(collection(db, "notes"), (snapshot) => {
+                let html = '';
+                snapshot.forEach((d) => {
+                    const n = d.data();
+                    html += `
+                    <div class="p-5 glass rounded-[25px] border border-white/5 relative mb-4">
+                        <button onclick="deleteData('notes', '${d.id}')" class="absolute top-4 right-4 text-red-500/30"><i class="fas fa-trash text-xs"></i></button>
+                        <h3 class="font-bold text-cyan-400 mb-2">${n.title}</h3>
+                        <p class="text-[11px] text-gray-400 leading-relaxed">${n.content}</p>
+                    </div>`;
+                });
+                document.getElementById('noteDisplayArea').innerHTML = html || '<p class="text-center opacity-10 py-10">কোনো নোট নেই</p>';
+            });
+        };
+    </script>
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;600;700&family=Orbitron:wght@400;700&display=swap');
         body { background: #010409; color: #c9d1d9; font-family: 'Hind Siliguri', sans-serif; overflow-x: hidden; }
         .orbitron { font-family: 'Orbitron', sans-serif; }
-        .glass { background: rgba(13, 17, 23, 0.92); backdrop-filter: blur(20px); border: 1px solid rgba(0, 242, 255, 0.1); }
+        .glass { background: rgba(13, 17, 23, 0.95); backdrop-filter: blur(20px); border: 1px solid rgba(0, 242, 255, 0.1); }
         .breaking-news { background: rgba(0, 242, 255, 0.05); border-y: 1px solid rgba(0, 242, 255, 0.1); padding: 6px 0; overflow: hidden; white-space: nowrap; font-size: 10px; color: #00f2ff; }
         .marquee { display: inline-block; animation: marquee 20s linear infinite; padding-left: 100%; letter-spacing: 2px; }
         @keyframes marquee { 0% { transform: translate(0, 0); } 100% { transform: translate(-100%, 0); } }
@@ -20,6 +142,7 @@
         .folder-card { background: #0d1117; border: 1px solid #30363d; border-radius: 20px; padding: 18px 10px; display: flex; flex-direction: column; align-items: center; cursor: pointer; }
         .full-modal { position: fixed; inset: 0; background: #010409; z-index: 2000; display: none; flex-direction: column; overflow-y: auto; }
         .full-modal.active { display: flex; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
         .footer-brand { background: linear-gradient(to right, #00f2ff, #0072ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800; }
     </style>
 </head>
@@ -27,7 +150,7 @@
 
     <header class="p-5 glass sticky top-0 z-50 flex justify-between items-center px-6">
         <div>
-            <div id="clock" class="text-xl font-bold orbitron text-cyan-400">00:00:00 AM</div>
+            <div id="clock" class="text-xl font-bold orbitron text-cyan-400">12:00:00 AM</div>
             <div id="date" class="text-[8px] text-gray-500 font-bold uppercase tracking-[2px]">SYSTEM ACTIVE</div>
         </div>
         <img onclick="openModal('profileModal')" src="https://ibb.co.com/wFtWVK0x" class="w-10 h-10 rounded-full border-2 border-cyan-500 object-cover cursor-pointer">
@@ -35,15 +158,14 @@
 
     <div class="breaking-news">
         <div class="marquee orbitron uppercase">
-            <i class="fas fa-microchip mr-2"></i> Welcome BIPUL Control Panel... Secure Access Granted... Data Encryption Active... <i class="fas fa-shield-halved ml-2"></i>
+            <i class="fas fa-wifi mr-2"></i> Welcome BIPUL Control Panel... Firebase Cloud Connected... Authorized Access Only... <i class="fas fa-shield-halved ml-2"></i>
         </div>
     </div>
 
     <main class="max-w-4xl mx-auto p-4 space-y-8">
         <div class="swiper mySwiper rounded-3xl overflow-hidden border border-white/5">
             <div class="swiper-wrapper">
-                <div class="swiper-slide"><img src="https://images.unsplash.com/photo-1614850523296-d8c1af93d400?q=80" class="w-full h-40 object-cover"></div>
-                <div class="swiper-slide"><img src="https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80" class="w-full h-40 object-cover"></div>
+                <div class="swiper-slide"><img src="https://ibb.co.com/BmYxmWY" class="w-full h-40 object-cover"></div> <div class="swiper-slide"><img src="https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80" class="w-full h-40 object-cover"></div>
             </div>
             <div class="swiper-pagination"></div>
         </div>
@@ -87,7 +209,7 @@
             </div>
         </div>
 
-        <footer class="text-center py-10"><p class="footer-brand orbitron text-xs tracking-[2px]">RAFI DIGITAL SOLUTION</p></footer>
+        <footer class="text-center py-10"><p class="footer-brand orbitron text-xs">RAFI DIGITAL SOLUTION</p></footer>
     </main>
 
     <div id="gridSelectionModal" class="full-modal p-6">
@@ -114,48 +236,20 @@
         </div>
         <div class="p-6">
             <div class="flex gap-2 mb-6">
-                <input type="text" id="searchInput" onkeyup="renderContacts()" placeholder="Search..." class="flex-1 bg-[#161b22] border border-gray-800 p-4 rounded-2xl text-sm outline-none">
+                <input type="text" id="searchInput" onkeyup="window.renderContacts()" placeholder="অনুসন্ধান..." class="flex-1 bg-[#161b22] border border-gray-800 p-4 rounded-2xl text-sm outline-none">
                 <button onclick="openModal('addContactModal')" class="bg-cyan-600 w-14 h-14 rounded-2xl text-white flex items-center justify-center shadow-lg"><i class="fas fa-user-plus"></i></button>
             </div>
-            <div id="contactDisplay" class="space-y-4 pb-20"></div>
+            <div id="contactDisplay" class="space-y-4 pb-20 no-scrollbar"></div>
         </div>
     </div>
 
     <div id="addContactModal" class="full-modal p-6 items-center justify-center bg-black/95">
         <div class="glass p-8 rounded-[40px] w-full max-w-sm">
-            <h3 class="text-center text-cyan-500 font-bold mb-6">নতুন তথ্য</h3>
+            <h3 class="text-center text-cyan-500 font-bold mb-6">নতুন কন্টাক্ট</h3>
             <input type="text" id="newName" placeholder="নাম" class="w-full bg-[#0d1117] border border-gray-800 p-4 rounded-xl mb-4 outline-none">
             <input type="tel" id="newPhone" placeholder="নম্বর" class="w-full bg-[#0d1117] border border-gray-800 p-4 rounded-xl mb-6 outline-none">
-            <button onclick="saveContact()" class="w-full py-4 bg-cyan-600 rounded-xl font-bold text-white shadow-lg">সেভ করুন</button>
+            <button onclick="window.saveContact()" class="w-full py-4 bg-cyan-600 rounded-xl font-bold text-white shadow-lg">ডাটাবেসে সেভ করুন</button>
             <button onclick="closeModal('addContactModal')" class="w-full mt-4 text-gray-500 text-xs">বাতিল</button>
-        </div>
-    </div>
-
-    <div id="noteSystemModal" class="full-modal p-6">
-        <div class="flex justify-between items-center mb-6">
-            <h2 class="text-cyan-400 font-bold uppercase">Secret Notes</h2>
-            <button onclick="closeModal('noteSystemModal')" class="text-red-500"><i class="fas fa-times text-xl"></i></button>
-        </div>
-        <button onclick="openModal('addNoteModal')" class="w-full py-4 bg-cyan-600 rounded-2xl font-bold mb-6 shadow-lg">+ NEW NOTE</button>
-        <div id="noteDisplayArea" class="space-y-4 pb-10"></div>
-    </div>
-
-    <div id="addNoteModal" class="full-modal p-6 items-center justify-center bg-black/95">
-        <div class="glass p-8 rounded-[35px] w-full max-w-sm">
-            <input type="text" id="noteTitle" placeholder="শিরোনাম" class="w-full bg-[#0d1117] border border-gray-800 p-4 rounded-xl mb-4 outline-none">
-            <textarea id="noteContent" placeholder="কন্টেন্ট..." class="w-full bg-[#0d1117] border border-gray-800 p-4 rounded-xl mb-4 text-sm h-32 outline-none"></textarea>
-            <input type="file" id="noteImg" accept="image/*" class="text-[10px] mb-6">
-            <button onclick="saveNote()" class="w-full py-4 bg-cyan-600 rounded-xl font-bold">SAVE NOTE</button>
-            <button onclick="closeModal('addNoteModal')" class="w-full mt-4 text-gray-600 text-xs text-center">CLOSE</button>
-        </div>
-    </div>
-
-    <div id="passModal" class="full-modal p-6 items-center justify-center bg-black/98">
-        <div class="glass p-8 rounded-[40px] text-center w-full max-w-sm">
-            <i class="fas fa-lock text-cyan-500 mb-6 text-2xl"></i>
-            <h3 class="orbitron text-cyan-500 mb-6 tracking-widest text-xs">ENCRYPTED</h3>
-            <input type="password" id="passInput" class="w-full bg-black border border-gray-800 p-4 rounded-xl text-center mb-6 outline-none tracking-[10px]">
-            <button onclick="checkPass()" class="w-full py-4 bg-cyan-600 rounded-xl font-bold">UNLOCK</button>
         </div>
     </div>
 
@@ -164,42 +258,55 @@
             <button onclick="closeModal('devModal')" class="absolute top-6 right-6 text-gray-700"><i class="fas fa-times"></i></button>
             <i class="fas fa-microchip text-4xl text-cyan-500 mb-4"></i>
             <h3 class="orbitron font-bold text-sm">RAKIBUL HASAN RAFI</h3>
-            <p class="text-[9px] text-cyan-500 uppercase mt-2 tracking-[2px]">Systems Lead</p>
-            <a href="tel:+8801763752653" class="block mt-6 py-3 bg-cyan-600/10 border border-cyan-500/20 rounded-xl font-bold text-cyan-400 text-xs">SUPPORT</a>
+            <p class="text-[9px] text-cyan-500 uppercase mt-2 tracking-[2px]">Lead Systems Engineer</p>
+            <a href="tel:+8801763752653" class="block mt-6 py-3 bg-cyan-600/10 border border-cyan-500/20 rounded-xl font-bold text-cyan-400 text-xs">PHONE SUPPORT</a>
         </div>
     </div>
 
     <div id="profileModal" class="full-modal p-6 items-center justify-center bg-black/95">
-        <div class="glass p-10 rounded-[50px] text-center w-full max-w-sm">
-            <img src="https://ibb.co.com/wFtWVK0x" class="w-32 h-32 mx-auto rounded-full border-4 border-cyan-500/20 mb-6 object-cover shadow-2xl">
-            <h2 class="text-xl font-bold orbitron">ZAHID HASAN BIPUL</h2>
-            <p class="text-cyan-500 text-[9px] font-bold mt-2 tracking-[2px] uppercase">Baraigram Upazila Chhatra Dal</p>
-            <button onclick="closeModal('profileModal')" class="mt-10 text-[9px] text-gray-600 uppercase font-bold">Exit Panel</button>
+        <div class="glass p-10 rounded-[50px] text-center w-full max-w-sm border-2 border-cyan-500/20">
+            <img src="https://ibb.co.com/wFtWVK0x" class="w-32 h-32 mx-auto rounded-full border-4 border-cyan-500 mb-6 object-cover shadow-2xl">
+            <h2 class="text-xl font-bold orbitron text-white">ZAHID HASAN BIPUL</h2>
+            <p class="text-cyan-500 text-[10px] font-bold mt-2 tracking-[2px] uppercase">আহ্বায়ক, বড়াইগ্রাম উপজেলা ছাত্রদল</p>
+            <button onclick="closeModal('profileModal')" class="mt-10 px-8 py-3 bg-white/5 rounded-full text-gray-600 text-[10px] font-bold uppercase tracking-widest">বন্ধ করুন</button>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
-    <script>
-        const swiper = new Swiper(".mySwiper", { pagination: { el: ".swiper-pagination", clickable: true }, autoplay: { delay: 4000 } });
-        let currentType = '', currentCat = '', currentSub = '';
-        let contacts = JSON.parse(localStorage.getItem('RAFI_ULTI_V3')) || [];
-        let notes = JSON.parse(localStorage.getItem('RAFI_NOTES_V3')) || [];
+    <div id="passModal" class="full-modal p-6 items-center justify-center bg-black/98">
+        <div class="glass p-8 rounded-[40px] text-center w-full max-w-sm border-cyan-500/20">
+            <i class="fas fa-lock text-cyan-500 mb-6 text-2xl"></i>
+            <h3 class="orbitron text-cyan-500 mb-6 tracking-widest text-xs">ENCRYPTED ACCESS</h3>
+            <input type="password" id="passInput" class="w-full bg-black border border-gray-800 p-4 rounded-xl text-center mb-6 outline-none tracking-[10px]">
+            <button onclick="window.checkPass()" class="w-full py-4 bg-cyan-600 rounded-xl font-bold text-white shadow-lg">UNLOCK</button>
+        </div>
+    </div>
 
+    <div id="noteSystemModal" class="full-modal p-6">
+        <div class="flex justify-between items-center mb-6 px-2">
+            <h2 class="text-cyan-400 font-bold uppercase orbitron text-sm">Secure Notes</h2>
+            <button onclick="closeModal('noteSystemModal')" class="text-red-500"><i class="fas fa-times text-xl"></i></button>
+        </div>
+        <button onclick="openModal('addNoteModal')" class="w-full py-4 bg-cyan-600 rounded-2xl font-bold mb-6 text-white shadow-lg">+ NEW NOTE</button>
+        <div id="noteDisplayArea" class="space-y-4 pb-10 overflow-y-auto no-scrollbar"></div>
+    </div>
+
+    <div id="addNoteModal" class="full-modal p-6 items-center justify-center bg-black/95">
+        <div class="glass p-8 rounded-[35px] w-full max-w-sm">
+            <input type="text" id="noteTitle" placeholder="শিরোনাম" class="w-full bg-[#0d1117] border border-gray-800 p-4 rounded-xl mb-4 outline-none text-sm">
+            <textarea id="noteContent" placeholder="আপনার গোপন তথ্য লিখুন..." class="w-full bg-[#0d1117] border border-gray-800 p-4 rounded-xl mb-4 text-sm h-32 outline-none leading-relaxed"></textarea>
+            <button onclick="window.saveNote()" class="w-full py-4 bg-cyan-600 rounded-xl font-bold text-white shadow-lg">SAVE NOTE</button>
+            <button onclick="closeModal('addNoteModal')" class="w-full mt-4 text-gray-500 text-xs">বাতিল</button>
+        </div>
+    </div>
+
+    <script>
+        // ইউটিলিটি ফাংশন
         function openModal(id) { document.getElementById(id).classList.add('active'); }
         function closeModal(id) { document.getElementById(id).classList.remove('active'); }
 
-        function updateClock() {
-            const now = new Date();
-            let hours = now.getHours(), minutes = now.getMinutes(), ampm = hours >= 12 ? 'PM' : 'AM';
-            hours = hours % 12 || 12; 
-            minutes = minutes < 10 ? '0'+minutes : minutes;
-            document.getElementById('clock').innerText = hours + ":" + minutes + ":" + (now.getSeconds() < 10 ? '0'+now.getSeconds() : now.getSeconds()) + " " + ampm;
-            document.getElementById('date').innerText = now.toLocaleDateString('bn-BD', {weekday:'long', year:'numeric', month:'long', day:'numeric'});
-        }
-        setInterval(updateClock, 1000); updateClock();
-
+        // ফোল্ডার গ্রিড দেখানোর ফাংশন
         function showGridMenu(type, items, label, startNum = 1) {
-            currentType = type;
+            window.currentType = type;
             const container = document.getElementById('gridItemsContainer'); container.innerHTML = '';
             let list = Array.isArray(items) ? items : Array.from({length: items}, (_, i) => startNum + i);
             list.forEach(item => {
@@ -209,66 +316,39 @@
             openModal('gridSelectionModal');
         }
 
+        // ক্যাটাগরি নির্বাচনের ফাংশন
         function handleSelect(name) {
-            currentCat = name; 
-            if(currentType === 'বড়াইগ্রাম পৌরসভা') { openModal('subCatModal'); } 
+            window.currentCat = name; 
+            if(window.currentType === 'বড়াইগ্রাম পৌরসভা') { openModal('subCatModal'); } 
             else { finalOpen(''); }
         }
 
+        // চূড়ান্ত নির্বাচনের ফাংশন
         function finalOpen(sub) {
-            currentSub = sub; closeModal('subCatModal'); closeModal('gridSelectionModal');
-            document.getElementById('contactTitle').innerText = currentCat + (sub ? " - " + sub : "");
-            openModal('contactModal'); renderContacts();
+            window.currentSub = sub; closeModal('subCatModal'); closeModal('gridSelectionModal');
+            document.getElementById('contactTitle').innerText = window.currentCat + (sub ? " - " + sub : "");
+            openModal('contactModal'); window.renderContacts();
         }
 
-        function openContactManager(type, cats) { currentType = type; currentCat = cats[0]; currentSub = ''; document.getElementById('contactTitle').innerText = type; openModal('contactModal'); renderContacts(); }
-
-        function renderContacts() {
-            const search = document.getElementById('searchInput').value.toLowerCase();
-            const filtered = contacts.filter(c => c.type === currentType && c.cat === currentCat && c.sub === currentSub && (c.name.toLowerCase().includes(search) || c.phone.includes(search)));
-            document.getElementById('contactDisplay').innerHTML = filtered.map((c, i) => `
-                <div class="p-4 glass rounded-2xl flex justify-between items-center border-l-4 border-cyan-500">
-                    <div><p class="font-bold text-sm text-white">${c.name}</p><p class="text-[10px] text-cyan-500">${c.phone}</p></div>
-                    <div class="flex gap-4">
-                        <button onclick="deleteContact(${contacts.indexOf(c)})" class="text-white/10"><i class="fas fa-trash"></i></button>
-                        <a href="tel:${c.phone}" class="w-11 h-11 bg-green-600 rounded-xl flex items-center justify-center text-white"><i class="fas fa-phone"></i></a>
-                    </div>
-                </div>`).join('') || '<p class="text-center opacity-20 mt-10 text-xs uppercase tracking-widest">No Data</p>';
+        // সাধারণ কন্টাক্ট ম্যানেজার খোলার ফাংশন
+        function openContactManager(type, cats) {
+            window.currentType = type; window.currentCat = cats[0]; window.currentSub = ''; document.getElementById('contactTitle').innerText = type; openModal('contactModal'); window.renderContacts();
         }
 
-        function saveContact() {
-            const name = document.getElementById('newName').value, phone = document.getElementById('newPhone').value;
-            if(!name || !phone) return;
-            contacts.push({ type: currentType, cat: currentCat, sub: currentSub, name, phone });
-            localStorage.setItem('RAFI_ULTI_V3', JSON.stringify(contacts));
-            document.getElementById('newName').value = ''; document.getElementById('newPhone').value = '';
-            closeModal('addContactModal'); renderContacts();
-        }
-        function deleteContact(idx) { if(confirm("Delete?")) { contacts.splice(idx, 1); localStorage.setItem('RAFI_ULTI_V3', JSON.stringify(contacts)); renderContacts(); } }
+        // পাসওয়ার্ড চেক করার ফাংশন
+        function checkPass() { if(document.getElementById('passInput').value === "1234") { closeModal('passModal'); window.renderNotes(); openModal('noteSystemModal'); } else alert("Access Denied!"); }
 
-        function checkPass() { if(document.getElementById('passInput').value === "1234") { closeModal('passModal'); renderNotes(); openModal('noteSystemModal'); } else alert("Access Denied!"); }
-
-        function saveNote() {
-            const title = document.getElementById('noteTitle').value, content = document.getElementById('noteContent').value, imgFile = document.getElementById('noteImg').files[0];
-            if(!title || !content) return;
-            if(imgFile) {
-                const reader = new FileReader();
-                reader.onload = function(e) { notes.push({ title, content, img: e.target.result }); finishNote(); };
-                reader.readAsDataURL(imgFile);
-            } else { notes.push({ title, content, img: null }); finishNote(); }
-        }
-        function finishNote() { localStorage.setItem('RAFI_NOTES_V3', JSON.stringify(notes)); closeModal('addNoteModal'); renderNotes(); }
-
-        function renderNotes() {
-            document.getElementById('noteDisplayArea').innerHTML = notes.map((n, i) => `
-                <div class="p-5 glass rounded-[25px] border border-white/5 relative">
-                    <button onclick="deleteNote(${i})" class="absolute top-4 right-4 text-red-500/30"><i class="fas fa-trash text-xs"></i></button>
-                    <h3 class="font-bold text-cyan-400 mb-2 text-sm">${n.title}</h3>
-                    <p class="text-[11px] text-gray-400 leading-relaxed mb-4">${n.content}</p>
-                    ${n.img ? `<img src="${n.img}" class="rounded-xl w-full h-auto border border-white/10">` : ''}
-                </div>`).join('') || '<p class="text-center opacity-20 mt-10">Empty</p>';
-        }
-        function deleteNote(i) { if(confirm("Delete?")) { notes.splice(i, 1); localStorage.setItem('RAFI_NOTES_V3', JSON.stringify(notes)); renderNotes(); } }
+        // ১২ ঘণ্টার ঘড়ি আপডেট করার ফাংশন
+        setInterval(() => {
+            const now = new Date();
+            let hours = now.getHours(), minutes = now.getMinutes(), ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12 || 12; 
+            minutes = minutes < 10 ? '0'+minutes : minutes;
+            document.getElementById('clock').innerText = hours + ":" + minutes + ":" + (now.getSeconds() < 10 ? '0'+now.getSeconds() : now.getSeconds()) + " " + ampm;
+            document.getElementById('date').innerText = now.toLocaleDateString('bn-BD', {weekday:'long', year:'numeric', month:'long', day:'numeric'});
+        }, 1000);
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+    <script> const swiper = new Swiper(".mySwiper", { pagination: { el: ".swiper-pagination", clickable: true }, autoplay: { delay: 4000 } }); </script>
 </body>
 </html>
