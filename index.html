@@ -25,6 +25,15 @@
         window.currentType = ''; window.currentCat = ''; window.currentSub = ''; 
         window.editingId = null; window.editingNoteId = null;
 
+        // --- কমন ডিলিট ফাংশন ---
+        window.deleteData = async (coll, id) => { 
+            if(confirm("আপনি কি নিশ্চিতভাবে এটি ডিলিট করতে চান?")) {
+                try {
+                    await deleteDoc(doc(db, coll, id));
+                } catch (e) { alert("ডিলিট করতে সমস্যা হয়েছে!"); }
+            }
+        };
+
         // --- নোট সিস্টেম ---
         window.saveNote = async () => {
             const title = document.getElementById('noteTitle').value;
@@ -73,7 +82,7 @@
             });
         };
 
-        // --- কন্টাক্ট সিস্টেম (সার্চ আপডেট সহ) ---
+        // --- কন্টাক্ট সিস্টেম (ডিলিট বাটন যুক্ত করা হয়েছে) ---
         window.saveContact = async () => {
             const name = document.getElementById('newName').value;
             const phone = document.getElementById('newPhone').value;
@@ -107,9 +116,10 @@
                                 <p class="text-[10px] text-cyan-500 font-bold">${c.phone}</p>
                                 <p class="text-[8px] text-gray-500">${c.area || ''} | ${c.holding ? '#'+c.holding : ''}</p>
                             </div>
-                            <div class="flex gap-3 items-center">
-                                <button onclick="window.editData('${d.id}', '${c.name}', '${c.phone}', '${c.area}', '${c.holding}')" class="text-blue-400/50 text-sm"><i class="fas fa-edit"></i></button>
-                                <a href="tel:${c.phone}" class="w-10 h-10 bg-green-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-green-900/20"><i class="fas fa-phone"></i></a>
+                            <div class="flex gap-2 items-center">
+                                <button onclick="window.editData('${d.id}', '${c.name}', '${c.phone}', '${c.area}', '${c.holding}')" class="text-blue-400/50 text-sm p-2"><i class="fas fa-edit"></i></button>
+                                <button onclick="window.deleteData('contacts', '${d.id}')" class="text-red-500/50 text-sm p-2"><i class="fas fa-trash"></i></button>
+                                <a href="tel:${c.phone}" class="w-10 h-10 bg-green-600 rounded-xl flex items-center justify-center text-white shadow-lg"><i class="fas fa-phone"></i></a>
                             </div>
                         </div>`;
                     }
@@ -127,7 +137,7 @@
             openModal('addContactModal');
         };
 
-        // --- সিডিউল আপডেট ---
+        // --- সিডিউল সিস্টেম ---
         window.saveSchedule = async () => {
             const meeting = document.getElementById('schMeeting').value;
             const place = document.getElementById('schPlace').value;
@@ -173,11 +183,9 @@
             onSnapshot(q, (snap) => {
                 const defaultCats = ['সিনিয়র সিটিজেন', '১৯-৪০', 'পোস্টাল ভোটার', 'অন্যান্য ধর্মাবলম্বি'];
                 let catHtml = '';
-                
                 defaultCats.forEach(cat => {
                     catHtml += `<button onclick="finalOpen('${cat}')" class="py-4 bg-white/5 rounded-2xl text-sm border border-white/5 active:bg-cyan-900/20">${cat}</button>`;
                 });
-
                 snap.forEach(docSnap => {
                     const data = docSnap.data();
                     catHtml += `
@@ -186,7 +194,6 @@
                         <button onclick="window.deleteData('sub_categories', '${docSnap.id}')" class="absolute -top-1 -right-1 bg-red-600 text-white rounded-full w-5 h-5 text-[10px] flex items-center justify-center shadow-lg">×</button>
                     </div>`;
                 });
-
                 catHtml += `<button onclick="window.addNewSubCategory()" class="py-3 border border-dashed border-cyan-500/30 rounded-xl text-[10px] text-cyan-500 mt-2 font-bold uppercase">+ NEW CATEGORY</button>`;
                 document.getElementById('subCatButtons').innerHTML = catHtml;
             });
@@ -195,34 +202,40 @@
         window.addNewSubCategory = async () => {
             const name = prompt("ক্যাটাগরির নাম লিখুন:");
             if(name && name.trim() !== "") {
-                try {
-                    await addDoc(collection(db, "sub_categories"), {
-                        name: name.trim(),
-                        parentWord: window.currentCat,
-                        createdAt: Date.now()
-                    });
-                } catch (e) { alert("Failed to add category!"); }
+                await addDoc(collection(db, "sub_categories"), { name: name.trim(), parentWord: window.currentCat, createdAt: Date.now() });
             }
         };
 
-        window.deleteData = async (coll, id) => { if(confirm("Are you sure?")) await deleteDoc(doc(db, coll, id)); };
+        // --- ভল্ট এবং অন্যান্য ফোল্ডার লজিক ---
+        window.createNewSecretFolder = async () => {
+            const name = prompt("সিক্রেট ফোল্ডারের নাম:");
+            if(name && name.trim() !== "") {
+                await addDoc(collection(db, "secret_vault_folders"), { name: name.trim(), createdAt: Date.now() });
+            }
+        };
 
-        // --- অন্যান্য ফোল্ডার লজিক (Updated) ---
         window.createNewFolder = async () => {
             const name = prompt("ফোল্ডারের নাম:");
             if(name && name.trim() !== "") {
-                try {
-                    await addDoc(collection(db, "custom_folders"), { 
-                        name: name.trim(), 
-                        createdAt: Date.now() 
-                    });
-                } catch (e) { alert("Error creating folder!"); }
+                await addDoc(collection(db, "custom_folders"), { name: name.trim(), createdAt: Date.now() });
             }
         };
 
-        // Initialization & Other Folder Rendering
-        window.renderSchedules();
-        
+        // রেন্ডার সিক্রেট ফোল্ডার
+        onSnapshot(query(collection(db, "secret_vault_folders"), orderBy("createdAt", "desc")), (snap) => {
+            let html = '';
+            snap.forEach(d => {
+                const f = d.data();
+                html += `<div class="folder-card p-4 glass rounded-2xl flex flex-col items-center relative" onclick="openContactManager('Secret Vault', ['${f.name}'])">
+                    <button onclick="event.stopPropagation(); window.deleteData('secret_vault_folders', '${d.id}')" class="absolute top-2 right-2 text-[10px] opacity-40 text-red-500"><i class="fas fa-times"></i></button>
+                    <i class="fas fa-folder-open text-rose-500 text-2xl mb-2"></i>
+                    <span class="text-[10px] font-bold text-center text-gray-300">${f.name}</span>
+                </div>`;
+            });
+            document.getElementById('secretFolderGrid').innerHTML = html;
+        });
+
+        // রেন্ডার অন্যান্য ফোল্ডার
         onSnapshot(query(collection(db, "custom_folders"), orderBy("createdAt", "desc")), (snap) => {
             let html = '';
             snap.forEach(d => {
@@ -236,6 +249,7 @@
             document.getElementById('customFolderGrid').innerHTML = html;
         });
 
+        window.renderSchedules();
     </script>
     
     <script src="https://cdn.tailwindcss.com"></script>
@@ -244,18 +258,17 @@
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;600;700&family=Orbitron:wght@400;700&display=swap');
-        
         body { background: #010409; color: #c9d1d9; font-family: 'Hind Siliguri', sans-serif; overflow-x: hidden; }
         .glass { background: rgba(13, 17, 23, 0.9); backdrop-filter: blur(20px); border: 1px solid rgba(0, 242, 255, 0.1); }
         .orbitron { font-family: 'Orbitron', sans-serif; }
         .app-icon { width: 62px; height: 62px; border-radius: 20px; display: flex; align-items: center; justify-content: center; font-size: 22px; transition: 0.3s; border: 1px solid rgba(255,255,255,0.05); }
         .full-modal { position: fixed; inset: 0; background: #010409; z-index: 2000; display: none; flex-direction: column; overflow-y: auto; }
         .full-modal.active { display: flex; }
-        .marquee-wrapper { width: 100%; overflow: hidden; background: rgba(0, 242, 255, 0.03); padding: 8px 0; border-y: 1px solid rgba(0,242,255,0.05); }
-        .marquee-text { display: inline-block; white-space: nowrap; animation: marquee-fix 25s linear infinite; font-size: 10px; color: #00f2ff; letter-spacing: 1px; font-weight: bold; }
+        .marquee-wrapper { width: 100%; overflow: hidden; background: rgba(0, 242, 255, 0.03); padding: 8px 0; }
+        .marquee-text { display: inline-block; white-space: nowrap; animation: marquee-fix 25s linear infinite; font-size: 10px; color: #00f2ff; font-weight: bold; }
         @keyframes marquee-fix { 0% { transform: translate(100%, 0); } 100% { transform: translate(-100%, 0); } }
-        input, textarea { background: rgba(22, 27, 34, 0.8) !important; color: white !important; border: 1px solid rgba(255,255,255,0.1) !important; outline: none; transition: 0.3s; }
-        input:focus, textarea:focus { border-color: #00f2ff !important; box-shadow: 0 0 10px rgba(0,242,255,0.1); }
+        input, textarea { background: rgba(22, 27, 34, 0.8) !important; color: white !important; border: 1px solid rgba(255,255,255,0.1) !important; outline: none; }
+        input:focus { border-color: #00f2ff !important; }
     </style>
 </head>
 <body class="pb-10">
@@ -266,7 +279,7 @@
                 <div id="clock" class="text-2xl font-bold orbitron text-cyan-400">12:00:00 AM</div>
                 <div id="date" class="text-[9px] text-gray-500 font-bold tracking-[2px] mt-1 uppercase">Cloud Control System</div>
             </div>
-            <div class="w-12 h-12 flex items-center justify-center border border-cyan-500/20 rounded-2xl bg-cyan-500/5 shadow-[0_0_15px_rgba(0,242,255,0.1)]">
+            <div class="w-12 h-12 flex items-center justify-center border border-cyan-500/20 rounded-2xl bg-cyan-500/5">
                 <i class="fas fa-shield-halved text-cyan-500 text-xl animate-pulse"></i>
             </div>
         </div>
@@ -296,9 +309,9 @@
                 <div class="app-icon bg-gradient-to-br from-amber-500 to-orange-800 text-white"><i class="fas fa-calendar-check"></i></div>
                 <span class="text-[10px] mt-3 font-bold text-gray-400 uppercase">সিডিউল</span>
             </div>
-            <div onclick="openContactManager('পরিবার', ['সদস্য'])" class="flex flex-col items-center">
-                <div class="app-icon bg-gradient-to-br from-pink-600 to-rose-950 text-white"><i class="fas fa-house-chimney-user"></i></div>
-                <span class="text-[10px] mt-3 font-bold text-gray-400 uppercase">পরিবার</span>
+            <div onclick="openModal('vaultPassModal')" class="flex flex-col items-center">
+                <div class="app-icon bg-gradient-to-br from-pink-600 to-rose-950 text-white"><i class="fas fa-user-lock"></i></div>
+                <span class="text-[10px] mt-3 font-bold text-gray-400 uppercase">Secret Vault</span>
             </div>
             <div onclick="openContactManager('বন্ধু', ['ব্যক্তিগত বন্ধু'])" class="flex flex-col items-center">
                 <div class="app-icon bg-gradient-to-br from-orange-500 to-red-800 text-white"><i class="fas fa-user-group"></i></div>
@@ -313,15 +326,88 @@
                 <span class="text-[10px] mt-3 font-bold text-gray-400 uppercase">সিকিউরিটি</span>
             </div>
             <div onclick="openModal('devModal')" class="flex flex-col items-center">
-                <div class="app-icon bg-black border border-cyan-500/30 text-cyan-600 shadow-[0_0_10px_rgba(0,242,255,0.1)]"><i class="fas fa-code-branch"></i></div>
+                <div class="app-icon bg-black border border-cyan-500/30 text-cyan-600"><i class="fas fa-code-branch"></i></div>
                 <span class="text-[10px] mt-3 font-bold text-gray-400 uppercase">Architect</span>
             </div>
         </div>
-
-        <div class="text-center pt-8">
-            <p class="orbitron text-[9px] text-gray-600 tracking-[5px] uppercase">RAFI DIGITAL SOLUTION</p>
-        </div>
     </main>
+
+    <div id="contactModal" class="full-modal">
+        <div class="p-6 sticky top-0 bg-[#010409]/95 border-b border-white/5 flex justify-between items-center z-10">
+            <div class="flex items-center gap-3">
+                <button id="contactBackBtn" class="text-cyan-400 text-lg"><i class="fas fa-arrow-left"></i></button>
+                <h2 id="contactTitle" class="font-bold text-cyan-400 text-xs uppercase tracking-widest">Repository</h2>
+            </div>
+            <button onclick="closeModal('contactModal')" class="text-red-500/40"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="p-6">
+            <div class="flex gap-2 mb-6">
+                <input type="text" id="searchInput" onkeyup="window.renderContacts()" placeholder="নাম বা নম্বর অনুসন্ধান..." class="flex-1 p-4 rounded-2xl text-xs">
+                <button onclick="window.editingId=null; openModal('addContactModal')" class="bg-cyan-600 w-14 h-14 rounded-2xl text-white flex items-center justify-center"><i class="fas fa-user-plus"></i></button>
+            </div>
+            <div id="contactDisplay" class="pb-20"></div>
+        </div>
+    </div>
+
+    <div id="vaultPassModal" class="full-modal p-6 items-center justify-center bg-black/98">
+        <div class="glass p-10 rounded-[40px] text-center w-full max-w-sm">
+            <i class="fas fa-lock text-rose-500 mb-6 text-4xl"></i>
+            <h3 class="orbitron text-rose-500 mb-6 text-[10px] uppercase">Vault Access</h3>
+            <input type="password" id="vaultPassInput" class="w-full p-4 rounded-2xl text-center mb-6 text-rose-500 tracking-[15px] font-bold">
+            <button onclick="if(document.getElementById('vaultPassInput').value==='1234'){closeModal('vaultPassModal'); openModal('secretVaultModal'); document.getElementById('vaultPassInput').value=''}else{alert('Access Denied!')}" class="w-full py-4 bg-rose-600 rounded-2xl font-bold text-white shadow-lg">GRANT ACCESS</button>
+            <button onclick="closeModal('vaultPassModal')" class="mt-4 text-gray-700 text-[10px] uppercase">Cancel</button>
+        </div>
+    </div>
+
+    <div id="secretVaultModal" class="full-modal p-6">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-rose-500 font-bold orbitron text-xs">VAULT DIRECTORY</h2>
+            <button onclick="closeModal('secretVaultModal')" class="text-red-500"><i class="fas fa-times"></i></button>
+        </div>
+        <button onclick="window.createNewSecretFolder()" class="w-full py-4 bg-rose-900/10 border border-dashed border-rose-500/30 rounded-2xl text-[10px] font-bold mb-8 text-rose-400 uppercase">+ New Vault Directory</button>
+        <div id="secretFolderGrid" class="grid grid-cols-3 gap-4"></div>
+    </div>
+
+    <div id="addContactModal" class="full-modal p-6 items-center justify-center bg-black/95">
+        <form id="contactForm" class="glass p-8 rounded-[40px] w-full max-w-sm shadow-2xl" onsubmit="event.preventDefault(); window.saveContact();">
+            <h3 class="text-center text-cyan-500 font-bold mb-6 orbitron text-xs">DATA ENTRY</h3>
+            <input type="text" id="newName" placeholder="নাম" class="w-full p-4 rounded-xl mb-3 text-sm">
+            <input type="tel" id="newPhone" placeholder="মোবাইল নম্বর" class="w-full p-4 rounded-xl mb-3 text-sm">
+            <input type="text" id="newArea" placeholder="এলাকা" class="w-full p-4 rounded-xl mb-3 text-sm">
+            <input type="text" id="newHolding" placeholder="হোল্ডিং নম্বর" class="w-full p-4 rounded-xl mb-6 text-sm">
+            <button type="submit" class="w-full py-4 bg-cyan-600 rounded-xl font-bold text-white">SAVE TO CLOUD</button>
+            <button type="button" onclick="closeModal('addContactModal')" class="w-full mt-4 text-gray-700 text-[10px] font-bold uppercase">Discard</button>
+        </form>
+    </div>
+
+    <div id="gridSelectionModal" class="full-modal p-6">
+        <div class="flex items-center gap-4 mb-8">
+            <button onclick="closeModal('gridSelectionModal')" class="text-cyan-400 text-lg"><i class="fas fa-arrow-left"></i></button>
+            <h2 id="gridMenuTitle" class="orbitron text-[10px] font-bold text-cyan-500 uppercase">Select</h2>
+        </div>
+        <div id="gridItemsContainer" class="grid grid-cols-3 gap-4"></div>
+    </div>
+
+    <div id="subCatModal" class="full-modal p-6 items-center justify-center">
+        <div class="glass p-8 rounded-[40px] w-full max-w-sm shadow-2xl">
+            <div class="flex justify-between items-center mb-6">
+                <button onclick="goBack('subCatModal', 'gridSelectionModal')" class="text-cyan-400"><i class="fas fa-arrow-left"></i></button>
+                <h3 id="subCatHeader" class="text-center text-cyan-400 font-bold text-sm">বিভাগ</h3>
+                <span class="w-4"></span>
+            </div>
+            <div id="subCatButtons" class="flex flex-col gap-3"></div>
+        </div>
+    </div>
+
+    <div id="passModal" class="full-modal p-6 items-center justify-center bg-black/98">
+        <div class="glass p-10 rounded-[40px] text-center w-full max-w-sm shadow-2xl">
+            <i class="fas fa-fingerprint text-red-500 mb-6 text-4xl"></i>
+            <h3 class="orbitron text-cyan-500 mb-6 text-[10px] uppercase">Security Clearance</h3>
+            <input type="password" id="passInput" class="w-full p-4 rounded-2xl text-center mb-6 text-cyan-500 tracking-[15px] font-bold shadow-inner">
+            <button onclick="if(document.getElementById('passInput').value==='1234'){closeModal('passModal'); openModal('secureNotesModal'); window.renderNotes(); document.getElementById('passInput').value=''}else{alert('Access Denied!')}" class="w-full py-4 bg-cyan-600 rounded-2xl font-bold text-white shadow-lg">GRANT ACCESS</button>
+            <button onclick="closeModal('passModal')" class="mt-4 text-gray-700 text-[10px] uppercase">Cancel</button>
+        </div>
+    </div>
 
     <div id="secureNotesModal" class="full-modal p-6">
         <div class="flex justify-between items-center mb-6">
@@ -330,10 +416,10 @@
         </div>
         <form id="noteForm" class="glass p-6 rounded-[35px] mb-8 shadow-2xl" onsubmit="event.preventDefault(); window.saveNote();">
             <div class="space-y-4">
-                <input type="text" id="noteTitle" placeholder="নোটের শিরোনাম..." class="w-full p-4 rounded-2xl text-sm font-bold">
-                <textarea id="noteText" placeholder="আপনার গোপন বার্তা এখানে লিখুন..." class="w-full p-4 rounded-2xl text-sm h-40 resize-none"></textarea>
-                <input type="text" id="noteImg" placeholder="ইমেজ লিঙ্ক (যদি থাকে)" class="w-full p-4 rounded-2xl text-[10px]">
-                <button class="w-full py-4 bg-cyan-600 rounded-2xl font-bold text-xs uppercase orbitron tracking-widest shadow-lg shadow-cyan-900/30">
+                <input type="text" id="noteTitle" placeholder="শিরোনাম" class="w-full p-4 rounded-2xl text-sm font-bold">
+                <textarea id="noteText" placeholder="বিস্তারিত লিখুন..." class="w-full p-4 rounded-2xl text-sm h-40 resize-none"></textarea>
+                <input type="text" id="noteImg" placeholder="ইমেজ লিঙ্ক" class="w-full p-4 rounded-2xl text-[10px]">
+                <button class="w-full py-4 bg-cyan-600 rounded-2xl font-bold text-xs uppercase orbitron tracking-widest">
                     <span id="noteBtnText">Encrypt & Save Note</span>
                 </button>
             </div>
@@ -354,68 +440,10 @@
                     <input type="date" id="schDate" class="w-full p-4 rounded-xl text-xs">
                     <input type="text" id="schTime" placeholder="সময়" class="w-full p-4 rounded-xl text-xs">
                 </div>
-                <button type="submit" class="w-full py-4 bg-amber-600 rounded-xl font-bold text-white text-[10px] uppercase tracking-widest">Update Cloud</button>
+                <button type="submit" class="w-full py-4 bg-amber-600 rounded-xl font-bold text-white text-[10px] uppercase">Update Cloud</button>
             </div>
         </form>
         <div id="adminSchList" class="pb-10"></div>
-    </div>
-
-    <div id="contactModal" class="full-modal">
-        <div class="p-6 sticky top-0 bg-[#010409]/95 border-b border-white/5 flex justify-between items-center z-10">
-            <div class="flex items-center gap-3">
-                <button id="contactBackBtn" class="text-cyan-400 text-lg"><i class="fas fa-arrow-left"></i></button>
-                <h2 id="contactTitle" class="font-bold text-cyan-400 text-xs uppercase tracking-widest">Repository</h2>
-            </div>
-            <button onclick="closeModal('contactModal')" class="text-red-500/40"><i class="fas fa-times"></i></button>
-        </div>
-        <div class="p-6">
-            <div class="flex gap-2 mb-6">
-                <input type="text" id="searchInput" onkeyup="window.renderContacts()" placeholder="নাম, নম্বর বা এলাকা দিয়ে অনুসন্ধান..." class="flex-1 p-4 rounded-2xl text-xs">
-                <button onclick="window.editingId=null; openModal('addContactModal')" class="bg-cyan-600 w-14 h-14 rounded-2xl text-white flex items-center justify-center shadow-lg"><i class="fas fa-user-plus"></i></button>
-            </div>
-            <div id="contactDisplay" class="pb-20"></div>
-        </div>
-    </div>
-
-    <div id="addContactModal" class="full-modal p-6 items-center justify-center bg-black/95">
-        <form id="contactForm" class="glass p-8 rounded-[40px] w-full max-w-sm shadow-2xl" onsubmit="event.preventDefault(); window.saveContact();">
-            <h3 class="text-center text-cyan-500 font-bold mb-6 orbitron text-xs">DATA ENTRY</h3>
-            <input type="text" id="newName" placeholder="নাম" class="w-full p-4 rounded-xl mb-3 text-sm">
-            <input type="tel" id="newPhone" placeholder="মোবাইল নম্বর" class="w-full p-4 rounded-xl mb-3 text-sm">
-            <input type="text" id="newArea" placeholder="এলাকা" class="w-full p-4 rounded-xl mb-3 text-sm">
-            <input type="text" id="newHolding" placeholder="হোল্ডিং নম্বর" class="w-full p-4 rounded-xl mb-6 text-sm">
-            <button type="submit" class="w-full py-4 bg-cyan-600 rounded-xl font-bold text-white shadow-lg shadow-cyan-900/20">SAVE TO CLOUD</button>
-            <button type="button" onclick="closeModal('addContactModal')" class="w-full mt-4 text-gray-700 text-[10px] uppercase font-bold">Discard</button>
-        </form>
-    </div>
-
-    <div id="gridSelectionModal" class="full-modal p-6">
-        <div class="flex items-center gap-4 mb-8">
-            <button onclick="closeModal('gridSelectionModal')" class="text-cyan-400 text-lg"><i class="fas fa-arrow-left"></i></button>
-            <h2 id="gridMenuTitle" class="orbitron text-[10px] font-bold text-cyan-500 uppercase tracking-widest">Select</h2>
-        </div>
-        <div id="gridItemsContainer" class="grid grid-cols-3 gap-4"></div>
-    </div>
-
-    <div id="subCatModal" class="full-modal p-6 items-center justify-center">
-        <div class="glass p-8 rounded-[40px] w-full max-w-sm shadow-2xl">
-            <div class="flex justify-between items-center mb-6">
-                <button onclick="goBack('subCatModal', 'gridSelectionModal')" class="text-cyan-400"><i class="fas fa-arrow-left"></i></button>
-                <h3 id="subCatHeader" class="text-center text-cyan-400 font-bold text-sm">বিভাগ</h3>
-                <span class="w-4"></span>
-            </div>
-            <div id="subCatButtons" class="flex flex-col gap-3"></div>
-        </div>
-    </div>
-
-    <div id="passModal" class="full-modal p-6 items-center justify-center bg-black/98">
-        <div class="glass p-10 rounded-[40px] text-center w-full max-w-sm shadow-2xl">
-            <i class="fas fa-fingerprint text-red-500 mb-6 text-4xl animate-pulse"></i>
-            <h3 class="orbitron text-cyan-500 mb-6 text-[10px] uppercase tracking-[3px]">Security Clearance</h3>
-            <input type="password" id="passInput" class="w-full p-4 rounded-2xl text-center mb-6 text-cyan-500 tracking-[15px] font-bold shadow-inner">
-            <button onclick="if(document.getElementById('passInput').value==='1234'){closeModal('passModal'); openModal('secureNotesModal'); window.renderNotes(); document.getElementById('passInput').value=''}else{alert('Access Denied!')}" class="w-full py-4 bg-cyan-600 rounded-2xl font-bold text-white shadow-lg">GRANT ACCESS</button>
-            <button onclick="closeModal('passModal')" class="mt-4 text-gray-700 text-[10px] uppercase">Cancel</button>
-        </div>
     </div>
 
     <div id="customFolderModal" class="full-modal p-6">
@@ -423,18 +451,17 @@
             <h2 class="text-cyan-400 font-bold orbitron text-xs">CUSTOM FOLDERS</h2>
             <button onclick="closeModal('customFolderModal')" class="text-red-500"><i class="fas fa-times"></i></button>
         </div>
-        <button onclick="window.createNewFolder()" class="w-full py-4 bg-white/5 border border-dashed border-white/20 rounded-2xl text-[10px] uppercase font-bold mb-8">+ New Directory</button>
+        <button onclick="window.createNewFolder()" class="w-full py-4 bg-white/5 border border-dashed border-white/20 rounded-2xl text-[10px] font-bold mb-8 uppercase text-cyan-500">+ New Directory</button>
         <div id="customFolderGrid" class="grid grid-cols-3 gap-4"></div>
     </div>
 
     <div id="devModal" class="full-modal p-6 items-center justify-center bg-black/95">
-        <div class="glass p-10 rounded-[50px] text-center w-full max-w-sm border border-cyan-500/20 relative shadow-2xl">
-            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyan-500 to-transparent"></div>
-            <i class="fas fa-laptop-code text-5xl text-cyan-500 mb-6 drop-shadow-[0_0_15px_rgba(0,242,255,0.4)]"></i>
-            <h3 class="orbitron font-bold text-white tracking-widest text-sm mb-1 uppercase">System Architect</h3>
+        <div class="glass p-10 rounded-[50px] text-center w-full max-w-sm border border-cyan-500/20 shadow-2xl">
+            <i class="fas fa-laptop-code text-5xl text-cyan-500 mb-6"></i>
+            <h3 class="orbitron font-bold text-white text-sm mb-1">System Architect</h3>
             <p class="text-[10px] text-gray-500 uppercase tracking-[3px] mb-8 font-bold">Rafi Digital Solution</p>
             <div class="space-y-4">
-                <div class="bg-white/5 p-4 rounded-2xl border border-white/5">
+                <div class="bg-white/5 p-4 rounded-2xl">
                     <p class="text-[10px] text-gray-400 uppercase mb-1">Developer</p>
                     <p class="font-bold text-cyan-400 text-sm">Rakibul Hasan Rafi</p>
                 </div>
@@ -447,12 +474,10 @@
 
     <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
     <script>
-        // Modal Handlers
         function openModal(id) { document.getElementById(id).classList.add('active'); }
         function closeModal(id) { document.getElementById(id).classList.remove('active'); }
         function goBack(curr, target) { closeModal(curr); openModal(target); }
 
-        // Grid Menu logic
         function showGridMenu(type, items, label, startNum = 1) {
             window.currentType = type;
             document.getElementById('gridMenuTitle').innerText = type;
@@ -476,9 +501,7 @@
                 document.getElementById('subCatHeader').innerText = name;
                 window.loadSubCategories(name);
                 openModal('subCatModal');
-            } else { 
-                finalOpen(''); 
-            }
+            } else { finalOpen(''); }
         }
 
         function finalOpen(sub) {
@@ -499,10 +522,12 @@
             window.currentType = type; window.currentCat = cats[0]; window.currentSub = '';
             document.getElementById('contactBackBtn').onclick = () => closeModal('contactModal');
             document.getElementById('contactTitle').innerText = type + " - " + cats[0];
-            closeModal('customFolderModal'); openModal('contactModal'); window.renderContacts();
+            closeModal('customFolderModal'); 
+            closeModal('secretVaultModal'); 
+            openModal('contactModal'); 
+            window.renderContacts();
         }
 
-        // UI Updates
         window.mainSwiper = new Swiper(".mySwiper", { 
             pagination: { el: ".swiper-pagination", clickable: true }, 
             autoplay: { delay: 4000 }, 
