@@ -25,7 +25,7 @@
         window.currentType = ''; window.currentCat = ''; window.currentSub = ''; 
         window.editingId = null; window.editingNoteId = null;
 
-        // --- নোট সিস্টেম (With Edit Option) ---
+        // --- নোট সিস্টেম ---
         window.saveNote = async () => {
             const title = document.getElementById('noteTitle').value;
             const text = document.getElementById('noteText').value;
@@ -73,7 +73,7 @@
             });
         };
 
-        // --- কন্টাক্ট সিস্টেম ---
+        // --- কন্টাক্ট সিস্টেম (সার্চ আপডেট সহ) ---
         window.saveContact = async () => {
             const name = document.getElementById('newName').value;
             const phone = document.getElementById('newPhone').value;
@@ -95,7 +95,12 @@
                 let html = '';
                 snapshot.forEach((d) => {
                     const c = d.data();
-                    if(c.name.toLowerCase().includes(search) || c.phone.includes(search)) {
+                    const nameMatch = (c.name || '').toLowerCase().includes(search);
+                    const phoneMatch = (c.phone || '').includes(search);
+                    const areaMatch = (c.area || '').toLowerCase().includes(search);
+                    const holdingMatch = (c.holding || '').toLowerCase().includes(search);
+
+                    if(nameMatch || phoneMatch || areaMatch || holdingMatch) {
                         html += `<div class="p-4 glass rounded-2xl flex justify-between items-center border-l-4 border-cyan-500 mb-4 shadow-lg">
                             <div class="flex-1">
                                 <p class="font-bold text-sm text-white">${c.name}</p>
@@ -109,7 +114,7 @@
                         </div>`;
                     }
                 });
-                document.getElementById('contactDisplay').innerHTML = html || '<p class="text-center opacity-10 py-10">No Contact Saved</p>';
+                document.getElementById('contactDisplay').innerHTML = html || '<p class="text-center opacity-10 py-10">No Contact Found</p>';
             });
         };
 
@@ -202,20 +207,35 @@
 
         window.deleteData = async (coll, id) => { if(confirm("Are you sure?")) await deleteDoc(doc(db, coll, id)); };
 
-        // Initialization
+        // --- অন্যান্য ফোল্ডার লজিক (Updated) ---
+        window.createNewFolder = async () => {
+            const name = prompt("ফোল্ডারের নাম:");
+            if(name && name.trim() !== "") {
+                try {
+                    await addDoc(collection(db, "custom_folders"), { 
+                        name: name.trim(), 
+                        createdAt: Date.now() 
+                    });
+                } catch (e) { alert("Error creating folder!"); }
+            }
+        };
+
+        // Initialization & Other Folder Rendering
         window.renderSchedules();
-        onSnapshot(collection(db, "custom_folders"), (snap) => {
+        
+        onSnapshot(query(collection(db, "custom_folders"), orderBy("createdAt", "desc")), (snap) => {
             let html = '';
             snap.forEach(d => {
                 const f = d.data();
                 html += `<div class="folder-card p-4 glass rounded-2xl flex flex-col items-center relative" onclick="openContactManager('অন্যান্য', ['${f.name}'])">
-                    <button onclick="event.stopPropagation(); window.deleteData('custom_folders', '${d.id}')" class="absolute top-2 right-2 text-[10px] opacity-20"><i class="fas fa-times"></i></button>
+                    <button onclick="event.stopPropagation(); window.deleteData('custom_folders', '${d.id}')" class="absolute top-2 right-2 text-[10px] opacity-40 text-red-500"><i class="fas fa-times"></i></button>
                     <i class="fas fa-folder text-amber-500 text-2xl mb-2"></i>
-                    <span class="text-[10px] font-bold text-center">${f.name}</span>
+                    <span class="text-[10px] font-bold text-center text-gray-300">${f.name}</span>
                 </div>`;
             });
             document.getElementById('customFolderGrid').innerHTML = html;
         });
+
     </script>
     
     <script src="https://cdn.tailwindcss.com"></script>
@@ -350,7 +370,7 @@
         </div>
         <div class="p-6">
             <div class="flex gap-2 mb-6">
-                <input type="text" id="searchInput" onkeyup="window.renderContacts()" placeholder="অনুসন্ধান করুন..." class="flex-1 p-4 rounded-2xl text-xs">
+                <input type="text" id="searchInput" onkeyup="window.renderContacts()" placeholder="নাম, নম্বর বা এলাকা দিয়ে অনুসন্ধান..." class="flex-1 p-4 rounded-2xl text-xs">
                 <button onclick="window.editingId=null; openModal('addContactModal')" class="bg-cyan-600 w-14 h-14 rounded-2xl text-white flex items-center justify-center shadow-lg"><i class="fas fa-user-plus"></i></button>
             </div>
             <div id="contactDisplay" class="pb-20"></div>
@@ -481,11 +501,6 @@
             document.getElementById('contactTitle').innerText = type + " - " + cats[0];
             closeModal('customFolderModal'); openModal('contactModal'); window.renderContacts();
         }
-
-        window.createNewFolder = async () => {
-            const name = prompt("ফোল্ডারের নাম:");
-            if(name) await addDoc(collection(db, "custom_folders"), { name, createdAt: Date.now() });
-        };
 
         // UI Updates
         window.mainSwiper = new Swiper(".mySwiper", { 
