@@ -164,7 +164,6 @@
         };
 
         window.renderSchedules = () => {
-            // সিরিয়াল করার জন্য orderBy("date", "asc") ব্যবহার করা হয়েছে
             const q = query(collection(db, "schedules"), orderBy("date", "asc"));
             onSnapshot(q, (snap) => {
                 let sliderHtml = ''; let listHtml = '';
@@ -292,69 +291,87 @@
         @keyframes marquee-fix { 0% { transform: translate(100%, 0); } 100% { transform: translate(-100%, 0); } }
         input, textarea { background: rgba(22, 27, 34, 0.8) !important; color: white !important; border: 1px solid rgba(255,255,255,0.1) !important; outline: none; }
         input:focus { border-color: #00f2ff !important; }
+        
+        /* মাস্টার লক স্ক্রিন ডিজাইন */
+        #masterLockModal { background: #010409; z-index: 9999; display: flex; }
     </style>
 </head>
 <body class="pb-10">
 
-    <header class="p-6 glass sticky top-0 z-50">
-        <div class="flex justify-between items-center px-2">
-            <div>
-                <div id="clock" class="text-2xl font-bold orbitron text-cyan-400">12:00:00 AM</div>
-                <div id="date" class="text-[9px] text-gray-500 font-bold tracking-[2px] mt-1 uppercase">Cloud Control System</div>
-            </div>
-            <div class="w-12 h-12 flex items-center justify-center border border-cyan-500/20 rounded-2xl bg-cyan-500/5">
-                <i class="fas fa-shield-halved text-cyan-500 text-xl animate-pulse"></i>
-            </div>
+    <!-- মাস্টার লক স্ক্রিন (অ্যাপে ঢুকার মেইন গেট) -->
+    <div id="masterLockModal" class="fixed inset-0 p-6 flex flex-col items-center justify-center">
+        <div class="glass p-10 rounded-[40px] text-center w-full max-w-sm shadow-2xl border border-cyan-500/30">
+            <i class="fas fa-fingerprint text-cyan-400 mb-6 text-5xl animate-pulse"></i>
+            <h3 class="orbitron text-cyan-400 mb-2 text-sm font-bold tracking-[2px] uppercase">SYSTEM LOCKED</h3>
+            <p class="text-[10px] text-gray-500 mb-6 uppercase tracking-[1px]">RAFI DIGITAL SOLUTION</p>
+            <input type="password" id="masterPassInput" placeholder="••••" class="w-full p-4 rounded-2xl text-center mb-6 text-cyan-400 tracking-[15px] font-bold text-xl shadow-inner bg-black/50 border border-cyan-500/20">
+            <button onclick="checkMasterLock()" class="w-full py-4 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 rounded-2xl font-bold text-white text-xs uppercase orbitron tracking-widest transition-all shadow-lg shadow-cyan-500/10">ACCESS SYSTEM</button>
         </div>
-        <div class="marquee-wrapper mt-3"><div class="marquee-text orbitron uppercase">Welcome Jahid Hasan Bipul • RAFI DIGITAL SOLUTION • Smart Database v3.1 • Status: Secured • Sorting & Analytics Active</div></div>
-    </header>
+    </div>
 
-    <main class="max-w-4xl mx-auto p-4 space-y-8">
-        <div class="swiper mySwiper rounded-[35px] h-52 border border-white/5 shadow-2xl overflow-hidden bg-[#0d1117]">
-            <div class="swiper-wrapper" id="scheduleWrapper"></div>
-            <div class="swiper-pagination"></div>
-        </div>
+    <!-- মূল অ্যাপ্লিকেশন কন্টেন্ট -->
+    <div id="appContent" style="display: none;">
+        <header class="p-6 glass sticky top-0 z-50">
+            <div class="flex justify-between items-center px-2">
+                <div>
+                    <div id="clock" class="text-2xl font-bold orbitron text-cyan-400">12:00:00 AM</div>
+                    <div id="date" class="text-[9px] text-gray-500 font-bold tracking-[2px] mt-1 uppercase">Cloud Control System</div>
+                </div>
+                <div class="w-12 h-12 flex items-center justify-center border border-cyan-500/20 rounded-2xl bg-cyan-500/5">
+                    <i class="fas fa-shield-halved text-cyan-500 text-xl animate-pulse"></i>
+                </div>
+            </div>
+            <div class="marquee-wrapper mt-3"><div class="marquee-text orbitron uppercase">Welcome Jahid Hasan Bipul • RAFI DIGITAL SOLUTION • Smart Database v3.1 • Status: Secured • Sorting & Analytics Active</div></div>
+        </header>
 
-        <div class="grid grid-cols-3 gap-y-10 text-center px-2">
-            <div onclick="showGridMenu('বড়াইগ্রাম পৌরসভা', 9, 'ওয়ার্ড')" class="flex flex-col items-center">
-                <div class="app-icon bg-gradient-to-br from-cyan-600 to-blue-900 text-white"><i class="fas fa-city"></i></div>
-                <span class="text-[10px] mt-3 font-bold text-gray-400 uppercase">পৌরসভা</span>
+        <main class="max-w-4xl mx-auto p-4 space-y-8">
+            <div class="swiper mySwiper rounded-[35px] h-52 border border-white/5 shadow-2xl overflow-hidden bg-[#0d1117]">
+                <div class="swiper-wrapper" id="scheduleWrapper"></div>
+                <div class="swiper-pagination"></div>
             </div>
-            <div onclick="showGridMenu('ইউনিয়ন', ['বড়াইগ্রাম', 'নগর', 'চান্দাই','গোপালপুর', 'মাঝগাও', 'জোনাইল', 'জোয়াড়'], 'ইউনিয়ন')" class="flex flex-col items-center">
-                <div class="app-icon bg-gradient-to-br from-emerald-600 to-teal-900 text-white"><i class="fas fa-map-location-dot"></i></div>
-                <span class="text-[10px] mt-3 font-bold text-gray-400 uppercase">ইউনিয়ন</span>
-            </div>
-            <div onclick="showGridMenu('BPHS Batch', 26, 'ব্যাচ', 2000)" class="flex flex-col items-center">
-                <div class="app-icon bg-gradient-to-br from-purple-600 to-indigo-900 text-white"><i class="fas fa-graduation-cap"></i></div>
-                <span class="text-[10px] mt-3 font-bold text-gray-400 uppercase">BPHS Batch</span>
-            </div>
-            <div onclick="openModal('scheduleAdminModal')" class="flex flex-col items-center">
-                <div class="app-icon bg-gradient-to-br from-amber-500 to-orange-800 text-white"><i class="fas fa-calendar-check"></i></div>
-                <span class="text-[10px] mt-3 font-bold text-gray-400 uppercase">সিডিউল</span>
-            </div>
-            <div onclick="openModal('vaultPassModal')" class="flex flex-col items-center">
-                <div class="app-icon bg-gradient-to-br from-pink-600 to-rose-950 text-white"><i class="fas fa-user-lock"></i></div>
-                <span class="text-[10px] mt-3 font-bold text-gray-400 uppercase">Secret Vault</span>
-            </div>
-            <div onclick="openContactManager('বন্ধু', ['ব্যক্তিগত বন্ধু'])" class="flex flex-col items-center">
-                <div class="app-icon bg-gradient-to-br from-orange-500 to-red-800 text-white"><i class="fas fa-user-group"></i></div>
-                <span class="text-[10px] mt-3 font-bold text-gray-400 uppercase">বন্ধু</span>
-            </div>
-            <div onclick="openModal('customFolderModal')" class="flex flex-col items-center">
-                <div class="app-icon bg-[#161b22] border border-dashed border-cyan-500/50 text-cyan-400"><i class="fas fa-folder-plus"></i></div>
-                <span class="text-[10px] mt-3 font-bold text-gray-400 uppercase">অন্যান্য</span>
-            </div>
-            <div onclick="openModal('passModal')" class="flex flex-col items-center">
-                <div class="app-icon bg-[#0d1117] border border-red-500/30 text-red-500"><i class="fas fa-fingerprint"></i></div>
-                <span class="text-[10px] mt-3 font-bold text-gray-400 uppercase">সিকিউরিটি</span>
-            </div>
-            <div onclick="openModal('devModal')" class="flex flex-col items-center">
-                <div class="app-icon bg-black border border-cyan-500/30 text-cyan-600"><i class="fas fa-code-branch"></i></div>
-                <span class="text-[10px] mt-3 font-bold text-gray-400 uppercase">Architect</span>
-            </div>
-        </div>
-    </main>
 
+            <div class="grid grid-cols-3 gap-y-10 text-center px-2">
+                <div onclick="showGridMenu('বড়াইগ্রাম পৌরসভা', 9, 'ওয়ার্ড')" class="flex flex-col items-center">
+                    <div class="app-icon bg-gradient-to-br from-cyan-600 to-blue-900 text-white"><i class="fas fa-city"></i></div>
+                    <span class="text-[10px] mt-3 font-bold text-gray-400 uppercase">পৌরসভা</span>
+                </div>
+                <div onclick="showGridMenu('ইউনিয়ন', ['বড়াইগ্রাম', 'নগর', 'চান্দাই','গোপালপুর', 'মাঝগাও', 'জোনাইল', 'জোয়াড়'], 'ইউনিয়ন')" class="flex flex-col items-center">
+                    <div class="app-icon bg-gradient-to-br from-emerald-600 to-teal-900 text-white"><i class="fas fa-map-location-dot"></i></div>
+                    <span class="text-[10px] mt-3 font-bold text-gray-400 uppercase">ইউনিয়ন</span>
+                </div>
+                <div onclick="showGridMenu('BPHS Batch', 26, 'ব্যাচ', 2000)" class="flex flex-col items-center">
+                    <div class="app-icon bg-gradient-to-br from-purple-600 to-indigo-900 text-white"><i class="fas fa-graduation-cap"></i></div>
+                    <span class="text-[10px] mt-3 font-bold text-gray-400 uppercase">BPHS Batch</span>
+                </div>
+                <div onclick="openModal('scheduleAdminModal')" class="flex flex-col items-center">
+                    <div class="app-icon bg-gradient-to-br from-amber-500 to-orange-800 text-white"><i class="fas fa-calendar-check"></i></div>
+                    <span class="text-[10px] mt-3 font-bold text-gray-400 uppercase">সিডিউল</span>
+                </div>
+                <div onclick="openModal('vaultPassModal')" class="flex flex-col items-center">
+                    <div class="app-icon bg-gradient-to-br from-pink-600 to-rose-950 text-white"><i class="fas fa-user-lock"></i></div>
+                    <span class="text-[10px] mt-3 font-bold text-gray-400 uppercase">Secret Vault</span>
+                </div>
+                <div onclick="openContactManager('বন্ধু', ['ব্যক্তিগত বন্ধু'])" class="flex flex-col items-center">
+                    <div class="app-icon bg-gradient-to-br from-orange-500 to-red-800 text-white"><i class="fas fa-user-group"></i></div>
+                    <span class="text-[10px] mt-3 font-bold text-gray-400 uppercase">বন্ধু</span>
+                </div>
+                <div onclick="openModal('customFolderModal')" class="flex flex-col items-center">
+                    <div class="app-icon bg-[#161b22] border border-dashed border-cyan-500/50 text-cyan-400"><i class="fas fa-folder-plus"></i></div>
+                    <span class="text-[10px] mt-3 font-bold text-gray-400 uppercase">অন্যান্য</span>
+                </div>
+                <div onclick="openModal('passModal')" class="flex flex-col items-center">
+                    <div class="app-icon bg-[#0d1117] border border-red-500/30 text-red-500"><i class="fas fa-fingerprint"></i></div>
+                    <span class="text-[10px] mt-3 font-bold text-gray-400 uppercase">সিকিউরিটি</span>
+                </div>
+                <div onclick="openModal('devModal')" class="flex flex-col items-center">
+                    <div class="app-icon bg-black border border-cyan-500/30 text-cyan-600"><i class="fas fa-code-branch"></i></div>
+                    <span class="text-[10px] mt-3 font-bold text-gray-400 uppercase">Architect</span>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- মোডাল সমুহ (সংরক্ষিত) -->
     <div id="contactModal" class="full-modal">
         <div class="p-6 sticky top-0 bg-[#010409]/95 border-b border-white/5 flex justify-between items-center z-10">
             <div class="flex items-center gap-3">
@@ -497,6 +514,25 @@
 
     <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
     <script>
+        // মাস্টার লক চেক ফাংশন
+        function checkMasterLock() {
+            const pass = document.getElementById('masterPassInput').value;
+            if(pass === '1290') {
+                document.getElementById('masterLockModal').style.display = 'none';
+                document.getElementById('appContent').style.display = 'block';
+            } else {
+                alert('Access Denied! ভুল পাসওয়ার্ড।');
+                document.getElementById('masterPassInput').value = '';
+            }
+        }
+
+        // এন্টার কি চাপলে যাতে লগিন হয়
+        document.getElementById('masterPassInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                checkMasterLock();
+            }
+        });
+
         function openModal(id) { document.getElementById(id).classList.add('active'); }
         function closeModal(id) { document.getElementById(id).classList.remove('active'); }
         function goBack(curr, target) { closeModal(curr); openModal(target); }
@@ -517,7 +553,6 @@
                         <span class="text-[10px] font-bold text-center">${name}</span>
                         <span id="${countId}" class="text-[8px] text-gray-500 mt-1 uppercase">0 এন্ট্রি</span>
                     </div>`;
-                // মেইন গ্রিডে কাউন্ট আপডেট
                 window.getEntryCount(type, name, '', countId);
             });
             openModal('gridSelectionModal');
